@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ESP32-S3 DAQ</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #07090e;
+  --surface:  #0c1018;
+  --surface2: #111822;
+  --border:   #192130;
+  --accent:   #38bdf8;
+  --green:    #34d399;
+  --orange:   #fb923c;
+  --red:      #f87171;
+  --purple:   #a78bfa;
+  --yellow:   #fbbf24;
+  --text:     #b8cfe0;
+  --muted:    #334d63;
+  --grid:     rgba(56,189,248,0.025);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;
+     font-size:13px;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:48px 48px}
+.wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:30px 24px}
+
+/* ── Header ── */
+header{display:flex;align-items:center;justify-content:space-between;
+       margin-bottom:30px;padding-bottom:20px;border-bottom:1px solid var(--border);
+       flex-wrap:wrap;gap:14px}
+.logo h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
+         letter-spacing:-0.3px;color:#fff}
+.logo h1 em{color:var(--accent);font-style:normal}
+.logo p{color:var(--muted);font-size:10px;margin-top:4px;letter-spacing:2.5px;text-transform:uppercase}
+.conn-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ip-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+#ipInput{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
+         color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;
+         padding:7px 12px;width:160px;outline:none;transition:border-color .2s}
+#ipInput:focus{border-color:var(--accent)}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:all .3s;flex-shrink:0}
+.ws-dot.open{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.ws-dot.err {background:var(--red);box-shadow:0 0 8px var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+#wsState{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+
+/* ── Stats row ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px}
+@media(max-width:800px){.stats{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:13px 14px}
+.sl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.sv{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;color:#fff}
+.sv.a{color:var(--accent)}.sv.g{color:var(--green)}.sv.o{color:var(--orange)}
+.sv.p{color:var(--purple)}.sv.r{color:var(--red)}
+
+/* ── Battery panel ── */
+.batt-panel{background:var(--surface);border:1px solid var(--border);border-radius:5px;
+            padding:16px 20px;margin-bottom:20px;display:none}
+.batt-panel.show{display:block}
+.batt-panel-title{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;
+                  color:var(--muted);margin-bottom:14px}
+.batt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:560px){.batt-grid{grid-template-columns:1fr 1fr}}
+
+/* Individual battery reading */
+.batt-cell{}
+.batt-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
+            color:var(--muted);margin-bottom:5px}
+.batt-value{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;
+            line-height:1;margin-bottom:8px}
+.batt-bar-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.batt-bar-fill{height:100%;border-radius:2px;transition:width .5s,background .5s;width:0%}
+
+/* Drop cell */
+.batt-drop .batt-value{color:var(--orange)}
+.drop-note{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* ── Controls ── */
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+button{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+       letter-spacing:2px;text-transform:uppercase;padding:11px 20px;border-radius:3px;
+       cursor:pointer;transition:all .15s;background:var(--surface);position:relative;overflow:hidden}
+button::after{content:'';position:absolute;inset:0;background:#fff;opacity:0;transition:.1s}
+button:hover:not(:disabled)::after{opacity:.05}
+button:active:not(:disabled)::after{opacity:.1}
+button:disabled{opacity:.2;cursor:not-allowed}
+#btnConnect {border:1px solid var(--accent); color:var(--accent)}
+#btnStream  {border:1px solid var(--purple); color:var(--purple)}
+#btnDownload{border:1px solid var(--orange); color:var(--orange)}
+
+/* ── Notice ── */
+.notice{background:var(--surface);border:1px solid var(--border);border-radius:4px;
+        padding:10px 16px;margin-bottom:16px;font-size:11px;line-height:1.7;
+        color:var(--muted);display:none}
+.notice.show{display:block}
+.notice strong{color:var(--text)}
+
+/* ── Progress ── */
+.prog{margin-bottom:20px;display:none}
+.prog.show{display:block}
+.prog-top{display:flex;justify-content:space-between;margin-bottom:6px;
+          font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.prog-track{height:2px;background:var(--border);border-radius:1px;overflow:hidden}
+.prog-fill{height:100%;width:0%;border-radius:1px;
+           background:linear-gradient(90deg,var(--accent),var(--green));transition:width .15s}
+
+/* ── Log ── */
+.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.section-title{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
+.btn-sm{background:none;border:1px solid var(--border);color:var(--muted);font-family:inherit;
+        font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;
+        border-radius:2px;cursor:pointer}
+.btn-sm:hover{color:var(--text)}
+#log{background:var(--surface);border:1px solid var(--border);border-radius:4px;
+     padding:10px 14px;height:120px;overflow-y:auto;font-size:11px;line-height:1.85;
+     margin-bottom:20px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.ll{display:block}
+.ll.ok{color:var(--green)}.ll.warn{color:var(--orange)}.ll.err{color:var(--red)}
+.ll.data{color:var(--accent)}.ll.dim{color:var(--muted)}
+.ts{color:var(--muted);margin-right:8px;font-size:10px}
+
+/* ── Table ── */
+.tbl-wrap{display:none}
+.tbl-wrap.show{display:block}
+.tbl-scroll{overflow:auto;max-height:280px;border:1px solid var(--border);border-radius:4px;
+            scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums}
+thead th{background:var(--surface);border-bottom:1px solid var(--border);padding:7px 12px;
+         text-align:right;font-weight:700;letter-spacing:.3px;color:var(--accent);
+         white-space:nowrap;position:sticky;top:0;z-index:1}
+thead th:first-child{text-align:left;color:var(--muted)}
+thead th.adc{color:var(--green)}
+thead th.usr{color:var(--yellow)}
+thead th.imu{color:var(--purple)}
+tbody tr:nth-child(even){background:rgba(255,255,255,.01)}
+tbody tr:hover{background:rgba(56,189,248,.04)}
+tbody td{padding:4px 12px;text-align:right;border-bottom:1px solid rgba(25,33,48,.8);
+         color:var(--text);white-space:nowrap}
+tbody td:first-child{text-align:left;color:var(--muted)}
+
+footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
+       color:var(--muted);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
+       display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <h1>ESP32<em>·</em>DAQ</h1>
+      <p>ICM42670 + LTC2351 CH0–CH4 + user0/user1 · Battery before/after · Auto-sequence</p>
+    </div>
+    <div class="conn-row">
+      <span class="ip-label">ESP32 IP</span>
+      <input id="ipInput" type="text" value="10.225.202.182" placeholder="192.168.x.x" spellcheck="false"/>
+      <div class="ws-dot" id="wsDot"></div>
+      <span id="wsState">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="notice show" id="notice">
+    <strong>Auto-sequence mode:</strong>
+    Device waits 3 s → measures 20 s (WiFi off) → connects WiFi automatically.
+    Enter the IP and click <strong>Connect</strong>, then <strong>Stream</strong>.
+  </div>
+
+  <!-- Acquisition stats -->
+  <div class="stats" style="margin-bottom:10px">
+    <div class="stat"><div class="sl">State</div>   <div class="sv a" id="sState">—</div></div>
+    <div class="stat"><div class="sl">Samples</div> <div class="sv g" id="sSamples">—</div></div>
+    <div class="stat"><div class="sl">Packets</div> <div class="sv p" id="sPkts">—</div></div>
+    <div class="stat"><div class="sl">Speed</div>   <div class="sv a" id="sSpeed">—</div></div>
+    <div class="stat"><div class="sl">Elapsed</div> <div class="sv o" id="sElapsed">—</div></div>
+  </div>
+
+  <!-- Battery before / after / drop panel (hidden until device_info arrives) -->
+  <div class="batt-panel" id="battPanel">
+    <div class="batt-panel-title">⚡ Battery measurement</div>
+    <div class="batt-grid">
+
+      <div class="batt-cell">
+        <div class="batt-label">Before acquisition</div>
+        <div class="batt-value" id="bvBefore">—</div>
+        <div class="batt-bar-track"><div class="batt-bar-fill" id="bbBefore"></div></div>
+      </div>
+
+      <div class="batt-cell">
+        <div class="batt-label">After acquisition</div>
+        <div class="batt-value" id="bvAfter">—</div>
+        <div class="batt-bar-track"><div class="batt-bar-fill" id="bbAfter"></div></div>
+      </div>
+
+      <div class="batt-cell batt-drop">
+        <div class="batt-label">Voltage drop</div>
+        <div class="batt-value" id="bvDrop">—</div>
+        <div class="drop-note" id="bvDropNote"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btnConnect">⬡ Connect</button>
+    <button id="btnStream"   disabled>⇄ Stream</button>
+    <button id="btnDownload" disabled>↓ Download CSV</button>
+  </div>
+
+  <div class="prog" id="prog">
+    <div class="prog-top">
+      <span id="progLabel">Streaming</span>
+      <span id="progPct">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+
+  <div class="section-hdr">
+    <span class="section-title">Event log</span>
+    <button class="btn-sm" onclick="$('log').innerHTML=''">Clear</button>
+  </div>
+  <div id="log"></div>
+
+  <div class="tbl-wrap" id="tblWrap">
+    <div class="section-hdr" style="margin-bottom:7px">
+      <span class="section-title">Data preview — last 200 rows</span>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th>#</th>
+          <th>timestamp_us</th>
+          <th class="adc">adc0</th>
+          <th class="adc">adc1</th>
+          <th class="adc">adc2</th>
+          <th class="adc">adc3</th>
+          <th class="adc">adc4</th>
+          <th class="usr">user0</th>
+          <th class="usr">user1</th>
+          <th class="imu">ax_g</th>
+          <th class="imu">ay_g</th>
+          <th class="imu">az_g</th>
+          <th class="imu">gx_dps</th>
+          <th class="imu">gy_dps</th>
+          <th class="imu">gz_dps</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>Auto-sequence · WebSocket · same WiFi network required</span>
+    <span id="footNote">0 samples stored</span>
+  </footer>
+</div>
+
+<script>
+// ── Helpers ───────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function log(msg, cls = '') {
+  const t  = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el = document.createElement('span');
+  el.className = 'll ' + cls;
+  el.innerHTML = `<span class="ts">${t}</span>${msg}`;
+  const box = $('log');
+  box.appendChild(el);
+  box.appendChild(document.createElement('br'));
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── Battery panel helpers ─────────────────────────────────────────
+// Li-ion 3.7 V nominal: 3.0 V empty → 4.2 V full.
+// Adjust BATT_MIN/MAX if your chemistry differs.
+const BATT_MIN = 3.0;
+const BATT_MAX = 4.2;
+
+function battPct(v) {
+  return Math.max(0, Math.min(100, (v - BATT_MIN) / (BATT_MAX - BATT_MIN) * 100));
+}
+function battColor(pct) {
+  return pct > 50 ? 'var(--green)' : pct > 20 ? 'var(--yellow)' : 'var(--red)';
+}
+
+function renderBattCell(valueId, barId, volts) {
+  const pct   = battPct(volts);
+  const color = battColor(pct);
+  $(valueId).textContent   = volts.toFixed(3) + ' V';
+  $(valueId).style.color   = color;
+  $(barId).style.width     = pct.toFixed(1) + '%';
+  $(barId).style.background = color;
+}
+
+function showBatteryPanel(before, after) {
+  renderBattCell('bvBefore', 'bbBefore', before);
+  renderBattCell('bvAfter',  'bbAfter',  after);
+
+  const drop    = before - after;
+  const dropPct = before > 0 ? (drop / before * 100) : 0;
+  $('bvDrop').textContent     = (drop >= 0 ? '−' : '+') + Math.abs(drop).toFixed(3) + ' V';
+  $('bvDropNote').textContent = `${Math.abs(dropPct).toFixed(2)}% over 20 s session`;
+
+  $('battPanel').classList.add('show');
+
+  log(`Battery  before: ${before.toFixed(3)} V   after: ${after.toFixed(3)} V   drop: ${drop.toFixed(3)} V`,
+      drop > 0.05 ? 'warn' : 'ok');
+}
+
+// ── State ─────────────────────────────────────────────────────────
+let wsConn = null;
+
+// Sample storage — 14 fields per sample:
+//  [0]     timestamp_us
+//  [1..5]  adc0–adc4
+//  [6..7]  user0, user1
+//  [8..10] ax_g, ay_g, az_g
+//  [11..13] gx_dps, gy_dps, gz_dps
+const FIELDS = 14;
+let samples       = null;
+let totalExpected = 0;
+let receivedCount = 0;
+let pktsReceived  = 0;
+
+let streamStartTime = 0;
+let speedTimer      = null;
+
+// ── WebSocket ─────────────────────────────────────────────────────
+function setWsState(state) {
+  $('wsDot').className = 'ws-dot' + (state==='open' ? ' open' : state==='error' ? ' err' : '');
+  $('wsState').textContent =
+    state==='open' ? 'Connected' : state==='error' ? 'Error' : 'Disconnected';
+  $('btnStream').disabled = state !== 'open';
+}
+
+$('btnConnect').onclick = () => {
+  if (wsConn && wsConn.readyState === WebSocket.OPEN) { wsConn.close(); return; }
+  const ip  = $('ipInput').value.trim();
+  const url = `ws://${ip}:81`;
+  log(`Connecting to ${url}…`);
+  $('btnConnect').textContent = '✕ Disconnect';
+  $('notice').classList.remove('show');
+
+  wsConn = new WebSocket(url);
+  wsConn.binaryType = 'arraybuffer';
+  wsConn.onopen    = () => { setWsState('open');   log(`Connected → ${url}`, 'ok'); $('sState').textContent='Connected'; $('btnConnect').textContent='✕ Disconnect'; };
+  wsConn.onclose   = () => { setWsState('closed'); log('Disconnected','warn'); $('sState').textContent='Disconnected'; $('btnConnect').textContent='⬡ Connect'; clearInterval(speedTimer); };
+  wsConn.onerror   = () => { setWsState('error');  log('Connection error — check IP and network','err'); };
+  wsConn.onmessage = onMessage;
+};
+
+function send(cmd) {
+  if (!wsConn || wsConn.readyState !== WebSocket.OPEN) return;
+  wsConn.send(cmd);
+  log(`→ ${cmd}`, 'data');
+}
+
+// ── Buttons ───────────────────────────────────────────────────────
+$('btnStream').onclick = () => {
+  reset();
+  $('prog').classList.add('show');
+  $('tblWrap').classList.add('show');
+  $('sState').textContent = 'Waiting…';
+  send('Stream');
+};
+
+$('btnDownload').onclick = downloadCSV;
+
+function reset() {
+  samples = null; totalExpected = 0; receivedCount = 0; pktsReceived = 0;
+  $('tbody').innerHTML = '';
+  $('tblWrap').classList.remove('show');
+  $('prog').classList.remove('show');
+  $('btnDownload').disabled = true;
+  $('sSamples').textContent = '—';
+  $('sPkts').textContent    = '—';
+  $('sSpeed').textContent   = '—';
+  $('sElapsed').textContent = '—';
+  clearInterval(speedTimer);
+}
+
+// ── Message handler ───────────────────────────────────────────────
+function onMessage(evt) {
+  if (evt.data instanceof ArrayBuffer) { handleBinary(evt.data); return; }
+  let msg;
+  try { msg = JSON.parse(evt.data); } catch { return; }
+  const { type, value } = msg;
+
+  if (type === 'device_info') {
+    // Show sample count
+    const n = parseInt(msg.samples) || 0;
+    $('sState').textContent   = 'Ready';
+    $('sSamples').textContent = n.toLocaleString();
+    $('footNote').textContent = `${n.toLocaleString()} samples ready`;
+    log(`Device ready — ${n.toLocaleString()} samples captured`, 'ok');
+
+    // Show battery before/after panel
+    const bBefore = parseFloat(msg.batt_before);
+    const bAfter  = parseFloat(msg.batt_after);
+    if (!isNaN(bBefore) && !isNaN(bAfter)) {
+      showBatteryPanel(bBefore, bAfter);
+    }
+    return;
+  }
+
+  if (type === 'status') {
+    $('sState').textContent = value;
+    log(`Device: ${value}`, 'ok');
+  }
+  else if (type === 'stream_start') {
+    totalExpected = parseInt(value);
+    samples = new Float32Array(totalExpected * FIELDS);
+    receivedCount = 0; pktsReceived = 0;
+    streamStartTime = performance.now();
+    log(`Stream start — ${totalExpected.toLocaleString()} samples`, 'ok');
+    $('sState').textContent = 'Streaming…';
+    setProgress(0, totalExpected);
+    speedTimer = setInterval(() => {
+      const el = (performance.now() - streamStartTime) / 1000;
+      $('sSpeed').textContent   = Math.round(receivedCount / el).toLocaleString() + '/s';
+      $('sElapsed').textContent = el.toFixed(1) + 's';
+    }, 500);
+  }
+  else if (type === 'stream_end') {
+    clearInterval(speedTimer);
+    const n  = parseInt(value);
+    const el = (performance.now() - streamStartTime) / 1000;
+    const sp = Math.round(n / el);
+    $('sState').textContent   = 'Complete';
+    $('sSpeed').textContent   = sp.toLocaleString() + '/s';
+    $('sElapsed').textContent = el.toFixed(2) + 's';
+    $('sSamples').textContent = n.toLocaleString();
+    $('footNote').textContent = `${n.toLocaleString()} samples stored`;
+    $('btnDownload').disabled = false;
+    setProgress(n, n);
+    log(`✓ Done — ${n.toLocaleString()} samples in ${el.toFixed(2)}s (${sp.toLocaleString()} samp/s)`, 'ok');
+    renderTable();
+  }
+  else if (type === 'error') {
+    log(`⚠ ${value}`, 'err');
+  }
+}
+
+// ── Binary packet decoder ─────────────────────────────────────────
+// Sample layout (30 bytes, little-endian):
+//   0   uint32  timestamp_us
+//   4   uint16  adc0
+//   6   uint16  adc1
+//   8   uint16  adc2
+//  10   uint16  adc3
+//  12   uint16  adc4
+//  14   uint16  user0
+//  16   uint16  user1
+//  18   int16   ax  → ÷2048 → g
+//  20   int16   ay
+//  22   int16   az
+//  24   int16   gx  → ÷16.4 → dps
+//  26   int16   gy
+//  28   int16   gz
+const SAMPLE_BYTES = 30;
+
+function handleBinary(buf) {
+  const dv    = new DataView(buf);
+  const seq   = dv.getUint16(0, true);
+  const count = dv.getUint16(2, true);
+  if (!samples) return;
+
+  pktsReceived++;
+  $('sPkts').textContent = pktsReceived.toLocaleString();
+
+  const baseIdx = seq * 50;
+  let off = 4;
+
+  for (let i = 0; i < count; i++) {
+    const si = baseIdx + i;
+    if (si >= totalExpected) break;
+    const b = si * FIELDS;
+    samples[b +  0] = dv.getUint32(off +  0, true);           // timestamp_us
+    samples[b +  1] = dv.getUint16(off +  4, true);           // adc0
+    samples[b +  2] = dv.getUint16(off +  6, true);           // adc1
+    samples[b +  3] = dv.getUint16(off +  8, true);           // adc2
+    samples[b +  4] = dv.getUint16(off + 10, true);           // adc3
+    samples[b +  5] = dv.getUint16(off + 12, true);           // adc4
+    samples[b +  6] = dv.getUint16(off + 14, true);           // user0
+    samples[b +  7] = dv.getUint16(off + 16, true);           // user1
+    samples[b +  8] = dv.getInt16 (off + 18, true) / 2048.0; // ax_g
+    samples[b +  9] = dv.getInt16 (off + 20, true) / 2048.0; // ay_g
+    samples[b + 10] = dv.getInt16 (off + 22, true) / 2048.0; // az_g
+    samples[b + 11] = dv.getInt16 (off + 24, true) / 16.4;   // gx_dps
+    samples[b + 12] = dv.getInt16 (off + 26, true) / 16.4;   // gy_dps
+    samples[b + 13] = dv.getInt16 (off + 28, true) / 16.4;   // gz_dps
+    off += SAMPLE_BYTES;
+    receivedCount = Math.max(receivedCount, si + 1);
+  }
+
+  $('sSamples').textContent = receivedCount.toLocaleString();
+  setProgress(receivedCount, totalExpected);
+}
+
+// ── Progress ─────────────────────────────────────────────────────
+function setProgress(cur, tot) {
+  const pct = tot > 0 ? Math.min(100, Math.round(cur / tot * 100)) : 0;
+  $('progFill').style.width  = pct + '%';
+  $('progPct').textContent   = pct + '%';
+  $('progLabel').textContent = `Streaming — ${cur.toLocaleString()} / ${tot.toLocaleString()}`;
+}
+
+// ── Table preview ─────────────────────────────────────────────────
+function renderTable() {
+  const tbody = $('tbody');
+  tbody.innerHTML = '';
+  if (!samples || receivedCount === 0) return;
+  const start = Math.max(0, receivedCount - 200);
+  const frag  = document.createDocumentFragment();
+  for (let i = start; i < receivedCount; i++) {
+    const b  = i * FIELDS;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${(i+1).toLocaleString()}</td>` +
+      `<td>${samples[b+0]}</td>` +
+      `<td>${samples[b+1]}</td>` +
+      `<td>${samples[b+2]}</td>` +
+      `<td>${samples[b+3]}</td>` +
+      `<td>${samples[b+4]}</td>` +
+      `<td>${samples[b+5]}</td>` +
+      `<td>${samples[b+6]}</td>` +
+      `<td>${samples[b+7]}</td>` +
+      `<td>${samples[b+8].toFixed(4)}</td>` +
+      `<td>${samples[b+9].toFixed(4)}</td>` +
+      `<td>${samples[b+10].toFixed(4)}</td>` +
+      `<td>${samples[b+11].toFixed(4)}</td>` +
+      `<td>${samples[b+12].toFixed(4)}</td>` +
+      `<td>${samples[b+13].toFixed(4)}</td>`;
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+}
+
+// ── Download CSV ──────────────────────────────────────────────────
+function downloadCSV() {
+  if (!samples || receivedCount === 0) { log('No data to download', 'warn'); return; }
+  log('Building CSV…', 'dim');
+  const header = 'timestamp_us,adc0,adc1,adc2,adc3,adc4,user0,user1,ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps\n';
+  const parts  = [header];
+  const CHUNK  = 8000;
+  function buildChunk(start) {
+    const end = Math.min(start + CHUNK, receivedCount);
+    let s = '';
+    for (let i = start; i < end; i++) {
+      const b = i * FIELDS;
+      s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},` +
+           `${samples[b+6]},${samples[b+7]},` +
+           `${samples[b+8].toFixed(4)},${samples[b+9].toFixed(4)},${samples[b+10].toFixed(4)},` +
+           `${samples[b+11].toFixed(4)},${samples[b+12].toFixed(4)},${samples[b+13].toFixed(4)}\n`;
+    }
+    parts.push(s);
+    if (end < receivedCount) {
+      setTimeout(() => buildChunk(end), 0);
+    } else {
+      const blob = new Blob(parts, { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url; a.download = `daq_${ts}.csv`; a.click();
+      URL.revokeObjectURL(url);
+      log(`Downloaded daq_${ts}.csv — ${receivedCount.toLocaleString()} rows`, 'ok');
+    }
+  }
+  buildChunk(0);
+}
+
+// ── Init ─────────────────────────────────────────────────────────
+log('Device auto-measures 20 s on power-on, then connects WiFi. Enter IP and Connect when ready.');
+</script>
+</body>
+</html>
