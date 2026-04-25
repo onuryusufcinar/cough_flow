@@ -23,391 +23,170 @@
   --grid:     rgba(56,189,248,0.025);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;
-     font-size:13px;min-height:100vh}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),
-                   linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:48px 48px}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;min-height:100vh;position:relative}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:48px 48px}
 .wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:30px 24px}
 
-/* ── Header ── */
-header{display:flex;align-items:center;justify-content:space-between;
-       margin-bottom:30px;padding-bottom:20px;border-bottom:1px solid var(--border);
-       flex-wrap:wrap;gap:14px}
-.logo h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
-         letter-spacing:-0.3px;color:#fff}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;padding-bottom:20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:14px}
+.logo h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff}
 .logo h1 em{color:var(--accent);font-style:normal}
 .logo p{color:var(--muted);font-size:10px;margin-top:4px;letter-spacing:2.5px;text-transform:uppercase}
-.conn-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.ip-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
-#ipInput{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
-         color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;
-         padding:7px 12px;width:160px;outline:none;transition:border-color .2s}
-#ipInput:focus{border-color:var(--accent)}
-.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:all .3s;flex-shrink:0}
-.ws-dot.open{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
-.ws-dot.err {background:var(--red);box-shadow:0 0 8px var(--red)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-#wsState{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
 
-/* ── Stats row ── */
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px}
-@media(max-width:800px){.stats{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+.conn-row{display:flex;align-items:center;gap:10px}
+#ipInput{background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:7px 12px;width:160px;outline:none}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.ws-dot.open{background:var(--green);box-shadow:0 0 8px var(--green)}
+.ws-dot.err{background:var(--red)}
+
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:13px 14px}
 .sl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.sv{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;color:#fff}
-.sv.a{color:var(--accent)}.sv.g{color:var(--green)}.sv.o{color:var(--orange)}
-.sv.p{color:var(--purple)}.sv.r{color:var(--red)}
+.sv{font-size:20px;font-weight:700;color:#fff}
+.sv.a{color:var(--accent)}.sv.g{color:var(--green)}.sv.p{color:var(--purple)}.sv.o{color:var(--orange)}
 
-/* ── Battery panel ── */
-.batt-panel{background:var(--surface);border:1px solid var(--border);border-radius:5px;
-            padding:16px 20px;margin-bottom:20px;display:none}
-.batt-panel.show{display:block}
-.batt-panel-title{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;
-                  color:var(--muted);margin-bottom:14px}
-.batt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-@media(max-width:560px){.batt-grid{grid-template-columns:1fr 1fr}}
+.controls{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+button{font-family:inherit;font-size:11px;font-weight:700;text-transform:uppercase;padding:11px 20px;border-radius:3px;cursor:pointer;background:var(--surface);transition:0.2s}
+button:disabled{opacity:0.2;cursor:not-allowed}
+#btnConnect{border:1px solid var(--accent);color:var(--accent)}
+#btnStream{border:1px solid var(--purple);color:var(--purple)}
+#btnDownload{border:1px solid var(--orange);color:var(--orange)}
+#btnVisualize{border:1px solid var(--green);color:var(--green)}
 
-/* Individual battery reading */
-.batt-cell{}
-.batt-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
-            color:var(--muted);margin-bottom:5px}
-.batt-value{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;
-            line-height:1;margin-bottom:8px}
-.batt-bar-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
-.batt-bar-fill{height:100%;border-radius:2px;transition:width .5s,background .5s;width:0%}
-
-/* Drop cell */
-.batt-drop .batt-value{color:var(--orange)}
-.drop-note{font-size:10px;color:var(--muted);margin-top:4px}
-
-/* ── Controls ── */
-.controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
-button{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
-       letter-spacing:2px;text-transform:uppercase;padding:11px 20px;border-radius:3px;
-       cursor:pointer;transition:all .15s;background:var(--surface);position:relative;overflow:hidden}
-button::after{content:'';position:absolute;inset:0;background:#fff;opacity:0;transition:.1s}
-button:hover:not(:disabled)::after{opacity:.05}
-button:active:not(:disabled)::after{opacity:.1}
-button:disabled{opacity:.2;cursor:not-allowed}
-#btnConnect {border:1px solid var(--accent); color:var(--accent)}
-#btnStream   {border:1px solid var(--purple); color:var(--purple)}
-#btnDownload{border:1px solid var(--orange); color:var(--orange)}
-#btnVisualize{border:1px solid var(--green); color:var(--green)}
-
-/* ── Notice ── */
-.notice{background:var(--surface);border:1px solid var(--border);border-radius:4px;
-        padding:10px 16px;margin-bottom:16px;font-size:11px;line-height:1.7;
-        color:var(--muted);display:none}
-.notice.show{display:block}
-.notice strong{color:var(--text)}
-
-/* ── Progress ── */
 .prog{margin-bottom:20px;display:none}
 .prog.show{display:block}
-.prog-top{display:flex;justify-content:space-between;margin-bottom:6px;
-          font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
-.prog-track{height:2px;background:var(--border);border-radius:1px;overflow:hidden}
-.prog-fill{height:100%;width:0%;border-radius:1px;
-           background:linear-gradient(90deg,var(--accent),var(--green));transition:width .15s}
+.prog-top{display:flex;justify-content:space-between;margin-bottom:6px;font-size:9px;color:var(--muted)}
+.prog-track{height:2px;background:var(--border);overflow:hidden}
+.prog-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width 0.1s}
 
-/* ── Log ── */
-.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
-.section-title{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
-.btn-sm{background:none;border:1px solid var(--border);color:var(--muted);font-family:inherit;
-        font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;
-        border-radius:2px;cursor:pointer}
-.btn-sm:hover{color:var(--text)}
-#log{background:var(--surface);border:1px solid var(--border);border-radius:4px;
-     padding:10px 14px;height:120px;overflow-y:auto;font-size:11px;line-height:1.85;
-     margin-bottom:20px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
-.ll{display:block}
-.ll.ok{color:var(--green)}.ll.warn{color:var(--orange)}.ll.err{color:var(--red)}
-.ll.data{color:var(--accent)}.ll.dim{color:var(--muted)}
-.ts{color:var(--muted);margin-right:8px;font-size:10px}
+#log{background:var(--surface);border:1px solid var(--border);padding:10px;height:120px;overflow-y:auto;font-size:11px;margin-bottom:20px}
+.ll.ok{color:var(--green)}
 
-/* ── Table & Chart ── */
-.tbl-wrap, .chart-wrap{display:none}
-.tbl-wrap.show, .chart-wrap.show{display:block}
-.tbl-scroll{overflow:auto;max-height:280px;border:1px solid var(--border);border-radius:4px;
-            scrollbar-width:thin;scrollbar-color:var(--border) transparent}
-table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums}
-thead th{background:var(--surface);border-bottom:1px solid var(--border);padding:7px 12px;
-         text-align:right;font-weight:700;letter-spacing:.3px;color:var(--accent);
-         white-space:nowrap;position:sticky;top:0;z-index:1}
-thead th:first-child{text-align:left;color:var(--muted)}
-thead th.adc{color:var(--green)}
-thead th.usr{color:var(--yellow)}
-thead th.imu{color:var(--purple)}
-tbody tr:nth-child(even){background:rgba(255,255,255,.01)}
-tbody tr:hover{background:rgba(56,189,248,.04)}
-tbody td{padding:4px 12px;text-align:right;border-bottom:1px solid rgba(25,33,48,.8);
-         color:var(--text);white-space:nowrap}
-tbody td:first-child{text-align:left;color:var(--muted)}
+.chart-wrap{display:none;margin-bottom:30px}
+.chart-wrap.show{display:block}
+.chart-container{background:var(--surface);border:1px solid var(--border);margin-bottom:10px;padding:10px;height:250px}
 
-.chart-container{background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:15px; margin-bottom:15px; height: 300px; position: relative;}
-
-footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
-       color:var(--muted);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
-       display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.tbl-wrap{display:none}
+.tbl-wrap.show{display:block}
+.tbl-scroll{overflow:auto;max-height:280px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--surface);padding:8px;text-align:right;color:var(--accent);position:sticky;top:0}
+tbody td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);color:var(--text)}
 </style>
 </head>
 <body>
-<div class="wrap">
 
+<div class="wrap">
   <header>
     <div class="logo">
       <h1>ESP32<em>·</em>DAQ</h1>
-      <p>ICM42670 + LTC2351 CH0–CH4 + user0/user1 · Battery before/after · Auto-sequence</p>
+      <p>ICM42670 + LTC2351 + Multi-Axis Visualization</p>
     </div>
     <div class="conn-row">
-      <span class="ip-label">ESP32 IP</span>
-      <input id="ipInput" type="text" value="10.225.202.182" placeholder="192.168.x.x" spellcheck="false"/>
+      <input id="ipInput" type="text" value="10.225.202.182">
       <div class="ws-dot" id="wsDot"></div>
-      <span id="wsState">Disconnected</span>
+      <span id="wsState" style="font-size:10px; text-transform:uppercase; color:var(--muted)">Disconnected</span>
     </div>
   </header>
 
-  <div class="notice show" id="notice">
-    <strong>Auto-sequence mode:</strong>
-    Device waits 3 s → measures 20 s (WiFi off) → connects WiFi automatically.
-    Enter the IP and click <strong>Connect</strong>, then <strong>Stream</strong>.
-  </div>
-
-  <div class="stats" style="margin-bottom:10px">
-    <div class="stat"><div class="sl">State</div>   <div class="sv a" id="sState">—</div></div>
-    <div class="stat"><div class="sl">Samples</div> <div class="sv g" id="sSamples">—</div></div>
-    <div class="stat"><div class="sl">Packets</div> <div class="sv p" id="sPkts">—</div></div>
-    <div class="stat"><div class="sl">Speed</div>   <div class="sv a" id="sSpeed">—</div></div>
-    <div class="stat"><div class="sl">Elapsed</div> <div class="sv o" id="sElapsed">—</div></div>
-  </div>
-
-  <div class="batt-panel" id="battPanel">
-    <div class="batt-panel-title">⚡ Battery measurement</div>
-    <div class="batt-grid">
-      <div class="batt-cell">
-        <div class="batt-label">Before acquisition</div>
-        <div class="batt-value" id="bvBefore">—</div>
-        <div class="batt-bar-track"><div class="batt-bar-fill" id="bbBefore"></div></div>
-      </div>
-      <div class="batt-cell">
-        <div class="batt-label">After acquisition</div>
-        <div class="batt-value" id="bvAfter">—</div>
-        <div class="batt-bar-track"><div class="batt-bar-fill" id="bbAfter"></div></div>
-      </div>
-      <div class="batt-cell batt-drop">
-        <div class="batt-label">Voltage drop</div>
-        <div class="batt-value" id="bvDrop">—</div>
-        <div class="drop-note" id="bvDropNote"></div>
-      </div>
-    </div>
+  <div class="stats">
+    <div class="stat"><div class="sl">State</div><div class="sv a" id="sState">—</div></div>
+    <div class="stat"><div class="sl">Samples</div><div class="sv g" id="sSamples">—</div></div>
+    <div class="stat"><div class="sl">Packets</div><div class="sv p" id="sPkts">—</div></div>
+    <div class="stat"><div class="sl">Speed</div><div class="sv a" id="sSpeed">—</div></div>
+    <div class="stat"><div class="sl">Elapsed</div><div class="sv o" id="sElapsed">—</div></div>
   </div>
 
   <div class="controls">
     <button id="btnConnect">⬡ Connect</button>
-    <button id="btnStream"   disabled>⇄ Stream</button>
-    <button id="btnDownload" disabled>↓ Download CSV</button>
+    <button id="btnStream" disabled>⇄ Stream</button>
+    <button id="btnDownload" disabled>↓ CSV</button>
     <button id="btnVisualize" disabled>📈 Visualize</button>
   </div>
 
   <div class="prog" id="prog">
-    <div class="prog-top">
-      <span id="progLabel">Streaming</span>
-      <span id="progPct">0%</span>
-    </div>
+    <div class="prog-top"><span id="progLabel">Streaming</span><span id="progPct">0%</span></div>
     <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
   </div>
 
-  <div class="section-hdr">
-    <span class="section-title">Event log</span>
-    <button class="btn-sm" onclick="$('log').innerHTML=''">Clear</button>
-  </div>
   <div id="log"></div>
 
   <div class="chart-wrap" id="chartWrap">
-    <div class="section-hdr" style="margin-bottom:7px">
-      <span class="section-title">Visualized Data</span>
-    </div>
-    <div class="chart-container"><canvas id="chartAdc"></canvas></div>
+    <div class="chart-container"><canvas id="chartAdcMic"></canvas></div>
+    <div class="chart-container"><canvas id="chartAdc2"></canvas></div>
+    <div class="chart-container"><canvas id="chartAdc3"></canvas></div>
+    <div class="chart-container"><canvas id="chartAdc4"></canvas></div>
     <div class="chart-container"><canvas id="chartImu"></canvas></div>
     <div class="chart-container"><canvas id="chartGyro"></canvas></div>
   </div>
 
   <div class="tbl-wrap" id="tblWrap">
-    <div class="section-hdr" style="margin-bottom:7px">
-      <span class="section-title">Data preview — last 200 rows</span>
-    </div>
     <div class="tbl-scroll">
       <table>
-        <thead><tr>
-          <th>#</th>
-          <th>timestamp_us</th>
-          <th class="adc">adc0</th>
-          <th class="adc">adc1</th>
-          <th class="adc">adc2</th>
-          <th class="adc">adc3</th>
-          <th class="adc">adc4</th>
-          <th class="usr">user0</th>
-          <th class="usr">user1</th>
-          <th class="imu">ax_g</th>
-          <th class="imu">ay_g</th>
-          <th class="imu">az_g</th>
-          <th class="imu">gx_dps</th>
-          <th class="imu">gy_dps</th>
-          <th class="imu">gz_dps</th>
-        </tr></thead>
+        <thead><tr><th>#</th><th>Time (us)</th><th>ADC0</th><th>ADC1</th><th>ADC2</th><th>ADC3</th><th>ADC4</th><th>U0</th><th>U1</th><th>AX</th><th>AY</th><th>AZ</th><th>GX</th><th>GY</th><th>GZ</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
   </div>
-
-  <footer>
-    <span>Auto-sequence · WebSocket · same WiFi network required</span>
-    <span id="footNote">0 samples stored</span>
-  </footer>
 </div>
 
 <script>
-// ── Helpers ───────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-
-function log(msg, cls = '') {
-  const t  = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  const el = document.createElement('span');
-  el.className = 'll ' + cls;
-  el.innerHTML = `<span class="ts">${t}</span>${msg}`;
-  const box = $('log');
-  box.appendChild(el);
-  box.appendChild(document.createElement('br'));
-  box.scrollTop = box.scrollHeight;
-}
-
-const BATT_MIN = 3.0;
-const BATT_MAX = 4.2;
-
-function battPct(v) { return Math.max(0, Math.min(100, (v - BATT_MIN) / (BATT_MAX - BATT_MIN) * 100)); }
-function battColor(pct) { return pct > 50 ? 'var(--green)' : pct > 20 ? 'var(--yellow)' : 'var(--red)'; }
-
-function renderBattCell(valueId, barId, volts) {
-  const pct   = battPct(volts);
-  const color = battColor(pct);
-  $(valueId).textContent   = volts.toFixed(3) + ' V';
-  $(valueId).style.color   = color;
-  $(barId).style.width     = pct.toFixed(1) + '%';
-  $(barId).style.background = color;
-}
-
-function showBatteryPanel(before, after) {
-  renderBattCell('bvBefore', 'bbBefore', before);
-  renderBattCell('bvAfter',  'bbAfter',  after);
-  const drop    = before - after;
-  const dropPct = before > 0 ? (drop / before * 100) : 0;
-  $('bvDrop').textContent     = (drop >= 0 ? '−' : '+') + Math.abs(drop).toFixed(3) + ' V';
-  $('bvDropNote').textContent = `${Math.abs(dropPct).toFixed(2)}% over 20 s session`;
-  $('battPanel').classList.add('show');
-}
-
-// ── State ─────────────────────────────────────────────────────────
-let wsConn = null;
+let wsConn = null, samples = null, totalExpected = 0, receivedCount = 0, pktsReceived = 0;
+let streamStartTime = 0, speedTimer = null, charts = [];
 const FIELDS = 14;
-let samples       = null;
-let totalExpected = 0;
-let receivedCount = 0;
-let pktsReceived  = 0;
-let streamStartTime = 0;
-let speedTimer       = null;
-let charts = [];
 
-// ── WebSocket ─────────────────────────────────────────────────────
-function setWsState(state) {
-  $('wsDot').className = 'ws-dot' + (state==='open' ? ' open' : state==='error' ? ' err' : '');
-  $('wsState').textContent = state==='open' ? 'Connected' : state==='error' ? 'Error' : 'Disconnected';
-  $('btnStream').disabled = state !== 'open';
+function log(msg, cls='') {
+  const t = new Date().toLocaleTimeString();
+  $('log').innerHTML += `<div class="ll ${cls}"><span style="color:var(--muted);margin-right:8px">${t}</span>${msg}</div>`;
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function setWsState(s) {
+  $('wsDot').className = 'ws-dot ' + (s==='open' ? 'open' : s==='error' ? 'err' : '');
+  $('wsState').textContent = s.toUpperCase();
+  $('btnStream').disabled = s !== 'open';
 }
 
 $('btnConnect').onclick = () => {
-  if (wsConn && wsConn.readyState === WebSocket.OPEN) { wsConn.close(); return; }
-  const ip  = $('ipInput').value.trim();
-  const url = `ws://${ip}:81`;
-  log(`Connecting to ${url}…`);
-  $('btnConnect').textContent = '✕ Disconnect';
-  $('notice').classList.remove('show');
-
-  wsConn = new WebSocket(url);
+  if (wsConn && wsConn.readyState === 1) { wsConn.close(); return; }
+  wsConn = new WebSocket(`ws://${$('ipInput').value.trim()}:81`);
   wsConn.binaryType = 'arraybuffer';
-  wsConn.onopen    = () => { setWsState('open'); log(`Connected → ${url}`, 'ok'); $('sState').textContent='Connected'; };
-  wsConn.onclose   = () => { setWsState('closed'); log('Disconnected','warn'); $('sState').textContent='Disconnected'; $('btnConnect').textContent='⬡ Connect'; clearInterval(speedTimer); };
-  wsConn.onerror   = () => { setWsState('error'); log('Connection error','err'); };
+  wsConn.onopen = () => { setWsState('open'); log('Connected','ok'); };
+  wsConn.onclose = () => { setWsState('closed'); log('Disconnected'); clearInterval(speedTimer); };
   wsConn.onmessage = onMessage;
 };
 
-function send(cmd) { if (wsConn && wsConn.readyState === WebSocket.OPEN) wsConn.send(cmd); }
-
-// ── Buttons ───────────────────────────────────────────────────────
 $('btnStream').onclick = () => {
-  reset();
+  receivedCount = 0; pktsReceived = 0; samples = null;
+  $('tbody').innerHTML = '';
   $('prog').classList.add('show');
   $('tblWrap').classList.add('show');
-  $('sState').textContent = 'Waiting…';
-  send('Stream');
+  $('chartWrap').classList.remove('show');
+  wsConn.send('Stream');
 };
 
-$('btnDownload').onclick = downloadCSV;
-$('btnVisualize').onclick = visualizeData;
-
-function reset() {
-  samples = null; totalExpected = 0; receivedCount = 0; pktsReceived = 0;
-  $('tbody').innerHTML = '';
-  $('tblWrap').classList.remove('show');
-  $('chartWrap').classList.remove('show');
-  $('prog').classList.remove('show');
-  $('btnDownload').disabled = true;
-  $('btnVisualize').disabled = true;
-  clearInterval(speedTimer);
-  charts.forEach(c => c.destroy());
-  charts = [];
-}
-
-// ── Message handler ───────────────────────────────────────────────
 function onMessage(evt) {
   if (evt.data instanceof ArrayBuffer) { handleBinary(evt.data); return; }
-  let msg;
-  try { msg = JSON.parse(evt.data); } catch { return; }
-  const { type, value } = msg;
-
-  if (type === 'device_info') {
-    const n = parseInt(msg.samples) || 0;
-    $('sState').textContent = 'Ready';
-    $('sSamples').textContent = n.toLocaleString();
-    const bB = parseFloat(msg.batt_before);
-    const bA = parseFloat(msg.batt_after);
-    if (!isNaN(bB) && !isNaN(bA)) showBatteryPanel(bB, bA);
-    return;
-  }
-  if (type === 'stream_start') {
-    totalExpected = parseInt(value);
+  const msg = JSON.parse(evt.data);
+  
+  if (msg.type === 'stream_start') {
+    totalExpected = parseInt(msg.value);
     samples = new Float32Array(totalExpected * FIELDS);
-    receivedCount = 0; pktsReceived = 0;
     streamStartTime = performance.now();
-    $('sState').textContent = 'Streaming…';
     speedTimer = setInterval(() => {
       const el = (performance.now() - streamStartTime) / 1000;
       $('sSpeed').textContent = Math.round(receivedCount / el).toLocaleString() + '/s';
       $('sElapsed').textContent = el.toFixed(1) + 's';
     }, 500);
-  }
-  else if (type === 'stream_end') {
+  } else if (msg.type === 'stream_end') {
     clearInterval(speedTimer);
-    const n  = parseInt(value);
-    $('sState').textContent = 'Complete';
     $('btnDownload').disabled = false;
     $('btnVisualize').disabled = false;
-    setProgress(n, n);
+    $('sState').textContent = 'DONE';
     renderTable();
-    log(`✓ Stream Complete`, 'ok');
+    log('Stream Complete','ok');
+  } else if (msg.type === 'status') {
+    $('sState').textContent = msg.value;
   }
 }
 
@@ -416,142 +195,122 @@ function handleBinary(buf) {
   const seq = dv.getUint16(0, true);
   const count = dv.getUint16(2, true);
   if (!samples) return;
+
   pktsReceived++;
+  $('sPkts').textContent = pktsReceived.toLocaleString();
+
   const baseIdx = seq * 50;
   let off = 4;
   for (let i = 0; i < count; i++) {
     const si = baseIdx + i;
     if (si >= totalExpected) break;
     const b = si * FIELDS;
-    samples[b+0] = dv.getUint32(off+0, true); 
-    samples[b+1] = dv.getUint16(off+4, true); 
-    samples[b+2] = dv.getUint16(off+6, true); 
-    samples[b+3] = dv.getUint16(off+8, true); 
-    samples[b+4] = dv.getUint16(off+10, true); 
-    samples[b+5] = dv.getUint16(off+12, true); 
+    samples[b+0] = dv.getUint32(off, true);
+    samples[b+1] = dv.getUint16(off+4, true);  // adc0
+    samples[b+2] = dv.getUint16(off+6, true);  // adc1
+    samples[b+3] = dv.getUint16(off+8, true);  // adc2
+    samples[b+4] = dv.getUint16(off+10, true); // adc3
+    samples[b+5] = dv.getUint16(off+12, true); // adc4
     samples[b+6] = dv.getUint16(off+14, true); 
-    samples[b+7] = dv.getUint16(off+16, true); 
-    samples[b+8] = dv.getInt16(off+18, true) / 2048.0; 
-    samples[b+9] = dv.getInt16(off+20, true) / 2048.0; 
-    samples[b+10] = dv.getInt16(off+22, true) / 2048.0; 
-    samples[b+11] = dv.getInt16(off+24, true) / 16.4; 
-    samples[b+12] = dv.getInt16(off+26, true) / 16.4; 
-    samples[b+13] = dv.getInt16(off+28, true) / 16.4; 
+    samples[b+7] = dv.getUint16(off+16, true);
+    samples[b+8] = dv.getInt16(off+18, true) / 2048.0; // ax
+    samples[b+9] = dv.getInt16(off+20, true) / 2048.0; // ay
+    samples[b+10] = dv.getInt16(off+22, true) / 2048.0; // az
+    samples[b+11] = dv.getInt16(off+24, true) / 16.4;   // gx
+    samples[b+12] = dv.getInt16(off+26, true) / 16.4;   // gy
+    samples[b+13] = dv.getInt16(off+28, true) / 16.4;   // gz
     off += 30;
     receivedCount = Math.max(receivedCount, si + 1);
   }
-  setProgress(receivedCount, totalExpected);
-}
-
-function setProgress(cur, tot) {
-  const pct = tot > 0 ? Math.min(100, Math.round(cur / tot * 100)) : 0;
+  $('sSamples').textContent = receivedCount.toLocaleString();
+  const pct = Math.round((receivedCount/totalExpected)*100);
   $('progFill').style.width = pct + '%';
   $('progPct').textContent = pct + '%';
 }
 
 function renderTable() {
-  const tbody = $('tbody');
-  tbody.innerHTML = '';
-  if (!samples || receivedCount === 0) return;
   const start = Math.max(0, receivedCount - 200);
-  const frag = document.createDocumentFragment();
+  let h = '';
   for (let i = start; i < receivedCount; i++) {
     const b = i * FIELDS;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${i+1}</td><td>${samples[b]}</td>` +
-      `<td>${samples[b+1]}</td><td>${samples[b+2]}</td><td>${samples[b+3]}</td><td>${samples[b+4]}</td><td>${samples[b+5]}</td>` +
-      `<td>${samples[b+6]}</td><td>${samples[b+7]}</td>` +
-      `<td>${samples[b+8].toFixed(3)}</td><td>${samples[b+9].toFixed(3)}</td><td>${samples[b+10].toFixed(3)}</td>` +
-      `<td>${samples[b+11].toFixed(2)}</td><td>${samples[b+12].toFixed(2)}</td><td>${samples[b+13].toFixed(2)}</td>`;
-    frag.appendChild(tr);
+    h += `<tr><td>${i+1}</td><td>${samples[b]}</td><td>${samples[b+1]}</td><td>${samples[b+2]}</td><td>${samples[b+3]}</td><td>${samples[b+4]}</td><td>${samples[b+5]}</td><td>${samples[b+6]}</td><td>${samples[b+7]}</td><td>${samples[b+8].toFixed(2)}</td><td>${samples[b+9].toFixed(2)}</td><td>${samples[b+10].toFixed(2)}</td><td>${samples[b+11].toFixed(1)}</td><td>${samples[b+12].toFixed(1)}</td><td>${samples[b+13].toFixed(1)}</td></tr>`;
   }
-  tbody.appendChild(frag);
+  $('tbody').innerHTML = h;
 }
 
-// ── Visualization Logic ──────────────────────────────────────────
-function visualizeData() {
-  if (!samples || receivedCount === 0) return;
+$('btnVisualize').onclick = () => {
   $('chartWrap').classList.add('show');
-  log('Generating plots...', 'dim');
-
-  const timeLabels = [];
-  const adc = [[],[],[],[],[]];
-  const imu = [[],[],[]];
-  const gyro = [[],[],[]];
-
-  // Downsample for performance if needed (e.g., plot max 5000 points)
-  const step = Math.max(1, Math.floor(receivedCount / 5000));
+  charts.forEach(c => c.destroy()); charts = [];
+  
+  // Downsampling to keep browser responsive (max 2000 points)
+  const step = Math.max(1, Math.floor(receivedCount / 2000));
+  const t = [], a0 = [], a1 = [], a2 = [], a3 = [], a4 = [], imuX = [], imuY = [], imuZ = [], gX = [], gY = [], gZ = [];
 
   for (let i = 0; i < receivedCount; i += step) {
     const b = i * FIELDS;
-    timeLabels.push((samples[b] / 1000000).toFixed(2) + 's');
-    for(let j=0; j<5; j++) adc[j].push(samples[b+1+j]);
-    for(let j=0; j<3; j++) imu[j].push(samples[b+8+j]);
-    for(let j=0; j<3; j++) gyro[j].push(samples[b+11+j]);
+    t.push((samples[b]/1000000).toFixed(2) + 's');
+    a0.push(samples[b+1]); a1.push(samples[b+2]); a2.push(samples[b+3]);
+    a3.push(samples[b+4]); a4.push(samples[b+5]);
+    imuX.push(samples[b+8]); imuY.push(samples[b+9]); imuZ.push(samples[b+10]);
+    gX.push(samples[b+11]); gY.push(samples[b+12]); gZ.push(samples[b+13]);
   }
 
-  const commonOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    elements: { point: { radius: 0 }, line: { borderWidth: 1 } },
-    scales: { x: { grid: { color: '#192130' }, ticks: { color: '#334d63' } }, y: { grid: { color: '#192130' }, ticks: { color: '#334d63' } } },
-    plugins: { legend: { labels: { color: '#b8cfe0', font: { size: 10 } } } }
-  };
-
-  charts.push(new Chart($('chartAdc'), {
-    type: 'line',
-    data: {
-      labels: timeLabels,
-      datasets: adc.map((data, i) => ({ label: `ADC${i}`, data, borderColor: ['#34d399','#fb923c','#f87171','#a78bfa','#fbbf24'][i] }))
-    },
-    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'ADC SENSORS', color: '#fff' } } }
+  const opt = (title) => ({ 
+    responsive:true, maintainAspectRatio:false, 
+    elements:{point:{radius:0},line:{borderWidth:1.5}},
+    plugins: { title: { display:true, text:title, color:'#fff' }, legend: { labels:{color:'#b8cfe0', font:{size:10}} } },
+    scales:{x:{ticks:{maxTicksLimit:10, color:'#334d63'}},y:{grid:{color:'#192130'}, ticks:{color:'#b8cfe0'}}} 
+  });
+  
+  // 1. Microphone (ADC0 & ADC1)
+  charts.push(new Chart($('chartAdcMic'), { 
+    type:'line', data:{ labels:t, datasets:[{label:'Mic Ch0',data:a0,borderColor:'#34d399'},{label:'Mic Ch1',data:a1,borderColor:'#fb923c'}] }, 
+    options:opt('MICROPHONE (ADC0 + ADC1)') 
   }));
 
-  charts.push(new Chart($('chartImu'), {
-    type: 'line',
-    data: {
-      labels: timeLabels,
-      datasets: [
-        { label: 'AX (g)', data: imu[0], borderColor: '#38bdf8' },
-        { label: 'AY (g)', data: imu[1], borderColor: '#34d399' },
-        { label: 'AZ (g)', data: imu[2], borderColor: '#fb923c' }
-      ]
-    },
-    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'ACCELEROMETER', color: '#fff' } } }
+  // 2. ADC2
+  charts.push(new Chart($('chartAdc2'), { 
+    type:'line', data:{ labels:t, datasets:[{label:'ADC2',data:a2,borderColor:'#f87171'}] }, 
+    options:opt('ADC CHANNEL 2') 
   }));
 
-  charts.push(new Chart($('chartGyro'), {
-    type: 'line',
-    data: {
-      labels: timeLabels,
-      datasets: [
-        { label: 'GX (dps)', data: gyro[0], borderColor: '#a78bfa' },
-        { label: 'GY (dps)', data: gyro[1], borderColor: '#fbbf24' },
-        { label: 'GZ (dps)', data: gyro[2], borderColor: '#f87171' }
-      ]
-    },
-    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'GYROSCOPE', color: '#fff' } } }
+  // 3. ADC3
+  charts.push(new Chart($('chartAdc3'), { 
+    type:'line', data:{ labels:t, datasets:[{label:'ADC3',data:a3,borderColor:'#a78bfa'}] }, 
+    options:opt('ADC CHANNEL 3') 
   }));
 
-  log('Visualization complete', 'ok');
-}
+  // 4. ADC4
+  charts.push(new Chart($('chartAdc4'), { 
+    type:'line', data:{ labels:t, datasets:[{label:'ADC4',data:a4,borderColor:'#fbbf24'}] }, 
+    options:opt('ADC CHANNEL 4') 
+  }));
 
-function downloadCSV() {
-  if (!samples || receivedCount === 0) return;
-  const header = 'timestamp_us,adc0,adc1,adc2,adc3,adc4,user0,user1,ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps\n';
-  let s = header;
-  for (let i = 0; i < receivedCount; i++) {
+  // 5. Accelerometer
+  charts.push(new Chart($('chartImu'), { 
+    type:'line', data:{ labels:t, datasets:[{label:'AX',data:imuX,borderColor:'#38bdf8'},{label:'AY',data:imuY,borderColor:'#34d399'},{label:'AZ',data:imuZ,borderColor:'#fb923c'}] }, 
+    options:opt('ACCELEROMETER (g)') 
+  }));
+
+  // 6. Gyroscope
+  charts.push(new Chart($('chartGyro'), { 
+    type:'line', data:{ labels:t, datasets:[{label:'GX',data:gX,borderColor:'#a78bfa'},{label:'GY',data:gY,borderColor:'#fbbf24'},{label:'GZ',data:gZ,borderColor:'#f87171'}] }, 
+    options:opt('GYROSCOPE (dps)') 
+  }));
+  
+  log('Plots generated', 'ok');
+};
+
+$('btnDownload').onclick = () => {
+  let s = 'timestamp_us,adc0,adc1,adc2,adc3,adc4,user0,user1,ax,ay,az,gx,gy,gz\n';
+  for (let i=0; i<receivedCount; i++) {
     const b = i * FIELDS;
-    s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},${samples[b+6]},${samples[b+7]},${samples[b+8].toFixed(4)},${samples[b+9].toFixed(4)},${samples[b+10].toFixed(4)},${samples[b+11].toFixed(4)},${samples[b+12].toFixed(4)},${samples[b+13].toFixed(4)}\n`;
+    s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},${samples[b+6]},${samples[b+7]},${samples[b+8]},${samples[b+9]},${samples[b+10]},${samples[b+11]},${samples[b+12]},${samples[b+13]}\n`;
   }
-  const blob = new Blob([s], { type: 'text/csv' });
+  const blob = new Blob([s], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `daq_${Date.now()}.csv`; a.click();
-}
-
-log('System Ready. Enter IP and Connect.');
+  const a = document.createElement('a'); a.href=url; a.download=`daq_${Date.now()}.csv`; a.click();
+};
 </script>
 </body>
 </html>
