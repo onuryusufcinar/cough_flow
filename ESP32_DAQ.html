@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ESP32-S3 DAQ</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root {
   --bg:       #07090e;
@@ -93,8 +94,9 @@ button:hover:not(:disabled)::after{opacity:.05}
 button:active:not(:disabled)::after{opacity:.1}
 button:disabled{opacity:.2;cursor:not-allowed}
 #btnConnect {border:1px solid var(--accent); color:var(--accent)}
-#btnStream  {border:1px solid var(--purple); color:var(--purple)}
+#btnStream   {border:1px solid var(--purple); color:var(--purple)}
 #btnDownload{border:1px solid var(--orange); color:var(--orange)}
+#btnVisualize{border:1px solid var(--green); color:var(--green)}
 
 /* ── Notice ── */
 .notice{background:var(--surface);border:1px solid var(--border);border-radius:4px;
@@ -127,9 +129,9 @@ button:disabled{opacity:.2;cursor:not-allowed}
 .ll.data{color:var(--accent)}.ll.dim{color:var(--muted)}
 .ts{color:var(--muted);margin-right:8px;font-size:10px}
 
-/* ── Table ── */
-.tbl-wrap{display:none}
-.tbl-wrap.show{display:block}
+/* ── Table & Chart ── */
+.tbl-wrap, .chart-wrap{display:none}
+.tbl-wrap.show, .chart-wrap.show{display:block}
 .tbl-scroll{overflow:auto;max-height:280px;border:1px solid var(--border);border-radius:4px;
             scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums}
@@ -145,6 +147,8 @@ tbody tr:hover{background:rgba(56,189,248,.04)}
 tbody td{padding:4px 12px;text-align:right;border-bottom:1px solid rgba(25,33,48,.8);
          color:var(--text);white-space:nowrap}
 tbody td:first-child{text-align:left;color:var(--muted)}
+
+.chart-container{background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:15px; margin-bottom:15px; height: 300px; position: relative;}
 
 footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
        color:var(--muted);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
@@ -173,7 +177,6 @@ footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
     Enter the IP and click <strong>Connect</strong>, then <strong>Stream</strong>.
   </div>
 
-  <!-- Acquisition stats -->
   <div class="stats" style="margin-bottom:10px">
     <div class="stat"><div class="sl">State</div>   <div class="sv a" id="sState">—</div></div>
     <div class="stat"><div class="sl">Samples</div> <div class="sv g" id="sSamples">—</div></div>
@@ -182,29 +185,24 @@ footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
     <div class="stat"><div class="sl">Elapsed</div> <div class="sv o" id="sElapsed">—</div></div>
   </div>
 
-  <!-- Battery before / after / drop panel (hidden until device_info arrives) -->
   <div class="batt-panel" id="battPanel">
     <div class="batt-panel-title">⚡ Battery measurement</div>
     <div class="batt-grid">
-
       <div class="batt-cell">
         <div class="batt-label">Before acquisition</div>
         <div class="batt-value" id="bvBefore">—</div>
         <div class="batt-bar-track"><div class="batt-bar-fill" id="bbBefore"></div></div>
       </div>
-
       <div class="batt-cell">
         <div class="batt-label">After acquisition</div>
         <div class="batt-value" id="bvAfter">—</div>
         <div class="batt-bar-track"><div class="batt-bar-fill" id="bbAfter"></div></div>
       </div>
-
       <div class="batt-cell batt-drop">
         <div class="batt-label">Voltage drop</div>
         <div class="batt-value" id="bvDrop">—</div>
         <div class="drop-note" id="bvDropNote"></div>
       </div>
-
     </div>
   </div>
 
@@ -212,6 +210,7 @@ footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
     <button id="btnConnect">⬡ Connect</button>
     <button id="btnStream"   disabled>⇄ Stream</button>
     <button id="btnDownload" disabled>↓ Download CSV</button>
+    <button id="btnVisualize" disabled>📈 Visualize</button>
   </div>
 
   <div class="prog" id="prog">
@@ -227,6 +226,15 @@ footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);
     <button class="btn-sm" onclick="$('log').innerHTML=''">Clear</button>
   </div>
   <div id="log"></div>
+
+  <div class="chart-wrap" id="chartWrap">
+    <div class="section-hdr" style="margin-bottom:7px">
+      <span class="section-title">Visualized Data</span>
+    </div>
+    <div class="chart-container"><canvas id="chartAdc"></canvas></div>
+    <div class="chart-container"><canvas id="chartImu"></canvas></div>
+    <div class="chart-container"><canvas id="chartGyro"></canvas></div>
+  </div>
 
   <div class="tbl-wrap" id="tblWrap">
     <div class="section-hdr" style="margin-bottom:7px">
@@ -277,18 +285,11 @@ function log(msg, cls = '') {
   box.scrollTop = box.scrollHeight;
 }
 
-// ── Battery panel helpers ─────────────────────────────────────────
-// Li-ion 3.7 V nominal: 3.0 V empty → 4.2 V full.
-// Adjust BATT_MIN/MAX if your chemistry differs.
 const BATT_MIN = 3.0;
 const BATT_MAX = 4.2;
 
-function battPct(v) {
-  return Math.max(0, Math.min(100, (v - BATT_MIN) / (BATT_MAX - BATT_MIN) * 100));
-}
-function battColor(pct) {
-  return pct > 50 ? 'var(--green)' : pct > 20 ? 'var(--yellow)' : 'var(--red)';
-}
+function battPct(v) { return Math.max(0, Math.min(100, (v - BATT_MIN) / (BATT_MAX - BATT_MIN) * 100)); }
+function battColor(pct) { return pct > 50 ? 'var(--green)' : pct > 20 ? 'var(--yellow)' : 'var(--red)'; }
 
 function renderBattCell(valueId, barId, volts) {
   const pct   = battPct(volts);
@@ -302,41 +303,28 @@ function renderBattCell(valueId, barId, volts) {
 function showBatteryPanel(before, after) {
   renderBattCell('bvBefore', 'bbBefore', before);
   renderBattCell('bvAfter',  'bbAfter',  after);
-
   const drop    = before - after;
   const dropPct = before > 0 ? (drop / before * 100) : 0;
   $('bvDrop').textContent     = (drop >= 0 ? '−' : '+') + Math.abs(drop).toFixed(3) + ' V';
   $('bvDropNote').textContent = `${Math.abs(dropPct).toFixed(2)}% over 20 s session`;
-
   $('battPanel').classList.add('show');
-
-  log(`Battery  before: ${before.toFixed(3)} V   after: ${after.toFixed(3)} V   drop: ${drop.toFixed(3)} V`,
-      drop > 0.05 ? 'warn' : 'ok');
 }
 
 // ── State ─────────────────────────────────────────────────────────
 let wsConn = null;
-
-// Sample storage — 14 fields per sample:
-//  [0]     timestamp_us
-//  [1..5]  adc0–adc4
-//  [6..7]  user0, user1
-//  [8..10] ax_g, ay_g, az_g
-//  [11..13] gx_dps, gy_dps, gz_dps
 const FIELDS = 14;
 let samples       = null;
 let totalExpected = 0;
 let receivedCount = 0;
 let pktsReceived  = 0;
-
 let streamStartTime = 0;
-let speedTimer      = null;
+let speedTimer       = null;
+let charts = [];
 
 // ── WebSocket ─────────────────────────────────────────────────────
 function setWsState(state) {
   $('wsDot').className = 'ws-dot' + (state==='open' ? ' open' : state==='error' ? ' err' : '');
-  $('wsState').textContent =
-    state==='open' ? 'Connected' : state==='error' ? 'Error' : 'Disconnected';
+  $('wsState').textContent = state==='open' ? 'Connected' : state==='error' ? 'Error' : 'Disconnected';
   $('btnStream').disabled = state !== 'open';
 }
 
@@ -350,17 +338,13 @@ $('btnConnect').onclick = () => {
 
   wsConn = new WebSocket(url);
   wsConn.binaryType = 'arraybuffer';
-  wsConn.onopen    = () => { setWsState('open');   log(`Connected → ${url}`, 'ok'); $('sState').textContent='Connected'; $('btnConnect').textContent='✕ Disconnect'; };
+  wsConn.onopen    = () => { setWsState('open'); log(`Connected → ${url}`, 'ok'); $('sState').textContent='Connected'; };
   wsConn.onclose   = () => { setWsState('closed'); log('Disconnected','warn'); $('sState').textContent='Disconnected'; $('btnConnect').textContent='⬡ Connect'; clearInterval(speedTimer); };
-  wsConn.onerror   = () => { setWsState('error');  log('Connection error — check IP and network','err'); };
+  wsConn.onerror   = () => { setWsState('error'); log('Connection error','err'); };
   wsConn.onmessage = onMessage;
 };
 
-function send(cmd) {
-  if (!wsConn || wsConn.readyState !== WebSocket.OPEN) return;
-  wsConn.send(cmd);
-  log(`→ ${cmd}`, 'data');
-}
+function send(cmd) { if (wsConn && wsConn.readyState === WebSocket.OPEN) wsConn.send(cmd); }
 
 // ── Buttons ───────────────────────────────────────────────────────
 $('btnStream').onclick = () => {
@@ -372,18 +356,19 @@ $('btnStream').onclick = () => {
 };
 
 $('btnDownload').onclick = downloadCSV;
+$('btnVisualize').onclick = visualizeData;
 
 function reset() {
   samples = null; totalExpected = 0; receivedCount = 0; pktsReceived = 0;
   $('tbody').innerHTML = '';
   $('tblWrap').classList.remove('show');
+  $('chartWrap').classList.remove('show');
   $('prog').classList.remove('show');
   $('btnDownload').disabled = true;
-  $('sSamples').textContent = '—';
-  $('sPkts').textContent    = '—';
-  $('sSpeed').textContent   = '—';
-  $('sElapsed').textContent = '—';
+  $('btnVisualize').disabled = true;
   clearInterval(speedTimer);
+  charts.forEach(c => c.destroy());
+  charts = [];
 }
 
 // ── Message handler ───────────────────────────────────────────────
@@ -394,190 +379,179 @@ function onMessage(evt) {
   const { type, value } = msg;
 
   if (type === 'device_info') {
-    // Show sample count
     const n = parseInt(msg.samples) || 0;
-    $('sState').textContent   = 'Ready';
+    $('sState').textContent = 'Ready';
     $('sSamples').textContent = n.toLocaleString();
-    $('footNote').textContent = `${n.toLocaleString()} samples ready`;
-    log(`Device ready — ${n.toLocaleString()} samples captured`, 'ok');
-
-    // Show battery before/after panel
-    const bBefore = parseFloat(msg.batt_before);
-    const bAfter  = parseFloat(msg.batt_after);
-    if (!isNaN(bBefore) && !isNaN(bAfter)) {
-      showBatteryPanel(bBefore, bAfter);
-    }
+    const bB = parseFloat(msg.batt_before);
+    const bA = parseFloat(msg.batt_after);
+    if (!isNaN(bB) && !isNaN(bA)) showBatteryPanel(bB, bA);
     return;
   }
-
-  if (type === 'status') {
-    $('sState').textContent = value;
-    log(`Device: ${value}`, 'ok');
-  }
-  else if (type === 'stream_start') {
+  if (type === 'stream_start') {
     totalExpected = parseInt(value);
     samples = new Float32Array(totalExpected * FIELDS);
     receivedCount = 0; pktsReceived = 0;
     streamStartTime = performance.now();
-    log(`Stream start — ${totalExpected.toLocaleString()} samples`, 'ok');
     $('sState').textContent = 'Streaming…';
-    setProgress(0, totalExpected);
     speedTimer = setInterval(() => {
       const el = (performance.now() - streamStartTime) / 1000;
-      $('sSpeed').textContent   = Math.round(receivedCount / el).toLocaleString() + '/s';
+      $('sSpeed').textContent = Math.round(receivedCount / el).toLocaleString() + '/s';
       $('sElapsed').textContent = el.toFixed(1) + 's';
     }, 500);
   }
   else if (type === 'stream_end') {
     clearInterval(speedTimer);
     const n  = parseInt(value);
-    const el = (performance.now() - streamStartTime) / 1000;
-    const sp = Math.round(n / el);
-    $('sState').textContent   = 'Complete';
-    $('sSpeed').textContent   = sp.toLocaleString() + '/s';
-    $('sElapsed').textContent = el.toFixed(2) + 's';
-    $('sSamples').textContent = n.toLocaleString();
-    $('footNote').textContent = `${n.toLocaleString()} samples stored`;
+    $('sState').textContent = 'Complete';
     $('btnDownload').disabled = false;
+    $('btnVisualize').disabled = false;
     setProgress(n, n);
-    log(`✓ Done — ${n.toLocaleString()} samples in ${el.toFixed(2)}s (${sp.toLocaleString()} samp/s)`, 'ok');
     renderTable();
-  }
-  else if (type === 'error') {
-    log(`⚠ ${value}`, 'err');
+    log(`✓ Stream Complete`, 'ok');
   }
 }
 
-// ── Binary packet decoder ─────────────────────────────────────────
-// Sample layout (30 bytes, little-endian):
-//   0   uint32  timestamp_us
-//   4   uint16  adc0
-//   6   uint16  adc1
-//   8   uint16  adc2
-//  10   uint16  adc3
-//  12   uint16  adc4
-//  14   uint16  user0
-//  16   uint16  user1
-//  18   int16   ax  → ÷2048 → g
-//  20   int16   ay
-//  22   int16   az
-//  24   int16   gx  → ÷16.4 → dps
-//  26   int16   gy
-//  28   int16   gz
-const SAMPLE_BYTES = 30;
-
 function handleBinary(buf) {
-  const dv    = new DataView(buf);
-  const seq   = dv.getUint16(0, true);
+  const dv = new DataView(buf);
+  const seq = dv.getUint16(0, true);
   const count = dv.getUint16(2, true);
   if (!samples) return;
-
   pktsReceived++;
-  $('sPkts').textContent = pktsReceived.toLocaleString();
-
   const baseIdx = seq * 50;
   let off = 4;
-
   for (let i = 0; i < count; i++) {
     const si = baseIdx + i;
     if (si >= totalExpected) break;
     const b = si * FIELDS;
-    samples[b +  0] = dv.getUint32(off +  0, true);           // timestamp_us
-    samples[b +  1] = dv.getUint16(off +  4, true);           // adc0
-    samples[b +  2] = dv.getUint16(off +  6, true);           // adc1
-    samples[b +  3] = dv.getUint16(off +  8, true);           // adc2
-    samples[b +  4] = dv.getUint16(off + 10, true);           // adc3
-    samples[b +  5] = dv.getUint16(off + 12, true);           // adc4
-    samples[b +  6] = dv.getUint16(off + 14, true);           // user0
-    samples[b +  7] = dv.getUint16(off + 16, true);           // user1
-    samples[b +  8] = dv.getInt16 (off + 18, true) / 2048.0; // ax_g
-    samples[b +  9] = dv.getInt16 (off + 20, true) / 2048.0; // ay_g
-    samples[b + 10] = dv.getInt16 (off + 22, true) / 2048.0; // az_g
-    samples[b + 11] = dv.getInt16 (off + 24, true) / 16.4;   // gx_dps
-    samples[b + 12] = dv.getInt16 (off + 26, true) / 16.4;   // gy_dps
-    samples[b + 13] = dv.getInt16 (off + 28, true) / 16.4;   // gz_dps
-    off += SAMPLE_BYTES;
+    samples[b+0] = dv.getUint32(off+0, true); 
+    samples[b+1] = dv.getUint16(off+4, true); 
+    samples[b+2] = dv.getUint16(off+6, true); 
+    samples[b+3] = dv.getUint16(off+8, true); 
+    samples[b+4] = dv.getUint16(off+10, true); 
+    samples[b+5] = dv.getUint16(off+12, true); 
+    samples[b+6] = dv.getUint16(off+14, true); 
+    samples[b+7] = dv.getUint16(off+16, true); 
+    samples[b+8] = dv.getInt16(off+18, true) / 2048.0; 
+    samples[b+9] = dv.getInt16(off+20, true) / 2048.0; 
+    samples[b+10] = dv.getInt16(off+22, true) / 2048.0; 
+    samples[b+11] = dv.getInt16(off+24, true) / 16.4; 
+    samples[b+12] = dv.getInt16(off+26, true) / 16.4; 
+    samples[b+13] = dv.getInt16(off+28, true) / 16.4; 
+    off += 30;
     receivedCount = Math.max(receivedCount, si + 1);
   }
-
-  $('sSamples').textContent = receivedCount.toLocaleString();
   setProgress(receivedCount, totalExpected);
 }
 
-// ── Progress ─────────────────────────────────────────────────────
 function setProgress(cur, tot) {
   const pct = tot > 0 ? Math.min(100, Math.round(cur / tot * 100)) : 0;
-  $('progFill').style.width  = pct + '%';
-  $('progPct').textContent   = pct + '%';
-  $('progLabel').textContent = `Streaming — ${cur.toLocaleString()} / ${tot.toLocaleString()}`;
+  $('progFill').style.width = pct + '%';
+  $('progPct').textContent = pct + '%';
 }
 
-// ── Table preview ─────────────────────────────────────────────────
 function renderTable() {
   const tbody = $('tbody');
   tbody.innerHTML = '';
   if (!samples || receivedCount === 0) return;
   const start = Math.max(0, receivedCount - 200);
-  const frag  = document.createDocumentFragment();
+  const frag = document.createDocumentFragment();
   for (let i = start; i < receivedCount; i++) {
-    const b  = i * FIELDS;
+    const b = i * FIELDS;
     const tr = document.createElement('tr');
-    tr.innerHTML =
-      `<td>${(i+1).toLocaleString()}</td>` +
-      `<td>${samples[b+0]}</td>` +
-      `<td>${samples[b+1]}</td>` +
-      `<td>${samples[b+2]}</td>` +
-      `<td>${samples[b+3]}</td>` +
-      `<td>${samples[b+4]}</td>` +
-      `<td>${samples[b+5]}</td>` +
-      `<td>${samples[b+6]}</td>` +
-      `<td>${samples[b+7]}</td>` +
-      `<td>${samples[b+8].toFixed(4)}</td>` +
-      `<td>${samples[b+9].toFixed(4)}</td>` +
-      `<td>${samples[b+10].toFixed(4)}</td>` +
-      `<td>${samples[b+11].toFixed(4)}</td>` +
-      `<td>${samples[b+12].toFixed(4)}</td>` +
-      `<td>${samples[b+13].toFixed(4)}</td>`;
+    tr.innerHTML = `<td>${i+1}</td><td>${samples[b]}</td>` +
+      `<td>${samples[b+1]}</td><td>${samples[b+2]}</td><td>${samples[b+3]}</td><td>${samples[b+4]}</td><td>${samples[b+5]}</td>` +
+      `<td>${samples[b+6]}</td><td>${samples[b+7]}</td>` +
+      `<td>${samples[b+8].toFixed(3)}</td><td>${samples[b+9].toFixed(3)}</td><td>${samples[b+10].toFixed(3)}</td>` +
+      `<td>${samples[b+11].toFixed(2)}</td><td>${samples[b+12].toFixed(2)}</td><td>${samples[b+13].toFixed(2)}</td>`;
     frag.appendChild(tr);
   }
   tbody.appendChild(frag);
 }
 
-// ── Download CSV ──────────────────────────────────────────────────
-function downloadCSV() {
-  if (!samples || receivedCount === 0) { log('No data to download', 'warn'); return; }
-  log('Building CSV…', 'dim');
-  const header = 'timestamp_us,adc0,adc1,adc2,adc3,adc4,user0,user1,ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps\n';
-  const parts  = [header];
-  const CHUNK  = 8000;
-  function buildChunk(start) {
-    const end = Math.min(start + CHUNK, receivedCount);
-    let s = '';
-    for (let i = start; i < end; i++) {
-      const b = i * FIELDS;
-      s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},` +
-           `${samples[b+6]},${samples[b+7]},` +
-           `${samples[b+8].toFixed(4)},${samples[b+9].toFixed(4)},${samples[b+10].toFixed(4)},` +
-           `${samples[b+11].toFixed(4)},${samples[b+12].toFixed(4)},${samples[b+13].toFixed(4)}\n`;
-    }
-    parts.push(s);
-    if (end < receivedCount) {
-      setTimeout(() => buildChunk(end), 0);
-    } else {
-      const blob = new Blob(parts, { type: 'text/csv' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      a.href = url; a.download = `daq_${ts}.csv`; a.click();
-      URL.revokeObjectURL(url);
-      log(`Downloaded daq_${ts}.csv — ${receivedCount.toLocaleString()} rows`, 'ok');
-    }
+// ── Visualization Logic ──────────────────────────────────────────
+function visualizeData() {
+  if (!samples || receivedCount === 0) return;
+  $('chartWrap').classList.add('show');
+  log('Generating plots...', 'dim');
+
+  const timeLabels = [];
+  const adc = [[],[],[],[],[]];
+  const imu = [[],[],[]];
+  const gyro = [[],[],[]];
+
+  // Downsample for performance if needed (e.g., plot max 5000 points)
+  const step = Math.max(1, Math.floor(receivedCount / 5000));
+
+  for (let i = 0; i < receivedCount; i += step) {
+    const b = i * FIELDS;
+    timeLabels.push((samples[b] / 1000000).toFixed(2) + 's');
+    for(let j=0; j<5; j++) adc[j].push(samples[b+1+j]);
+    for(let j=0; j<3; j++) imu[j].push(samples[b+8+j]);
+    for(let j=0; j<3; j++) gyro[j].push(samples[b+11+j]);
   }
-  buildChunk(0);
+
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    elements: { point: { radius: 0 }, line: { borderWidth: 1 } },
+    scales: { x: { grid: { color: '#192130' }, ticks: { color: '#334d63' } }, y: { grid: { color: '#192130' }, ticks: { color: '#334d63' } } },
+    plugins: { legend: { labels: { color: '#b8cfe0', font: { size: 10 } } } }
+  };
+
+  charts.push(new Chart($('chartAdc'), {
+    type: 'line',
+    data: {
+      labels: timeLabels,
+      datasets: adc.map((data, i) => ({ label: `ADC${i}`, data, borderColor: ['#34d399','#fb923c','#f87171','#a78bfa','#fbbf24'][i] }))
+    },
+    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'ADC SENSORS', color: '#fff' } } }
+  }));
+
+  charts.push(new Chart($('chartImu'), {
+    type: 'line',
+    data: {
+      labels: timeLabels,
+      datasets: [
+        { label: 'AX (g)', data: imu[0], borderColor: '#38bdf8' },
+        { label: 'AY (g)', data: imu[1], borderColor: '#34d399' },
+        { label: 'AZ (g)', data: imu[2], borderColor: '#fb923c' }
+      ]
+    },
+    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'ACCELEROMETER', color: '#fff' } } }
+  }));
+
+  charts.push(new Chart($('chartGyro'), {
+    type: 'line',
+    data: {
+      labels: timeLabels,
+      datasets: [
+        { label: 'GX (dps)', data: gyro[0], borderColor: '#a78bfa' },
+        { label: 'GY (dps)', data: gyro[1], borderColor: '#fbbf24' },
+        { label: 'GZ (dps)', data: gyro[2], borderColor: '#f87171' }
+      ]
+    },
+    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'GYROSCOPE', color: '#fff' } } }
+  }));
+
+  log('Visualization complete', 'ok');
 }
 
-// ── Init ─────────────────────────────────────────────────────────
-log('Device auto-measures 20 s on power-on, then connects WiFi. Enter IP and Connect when ready.');
+function downloadCSV() {
+  if (!samples || receivedCount === 0) return;
+  const header = 'timestamp_us,adc0,adc1,adc2,adc3,adc4,user0,user1,ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps\n';
+  let s = header;
+  for (let i = 0; i < receivedCount; i++) {
+    const b = i * FIELDS;
+    s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},${samples[b+6]},${samples[b+7]},${samples[b+8].toFixed(4)},${samples[b+9].toFixed(4)},${samples[b+10].toFixed(4)},${samples[b+11].toFixed(4)},${samples[b+12].toFixed(4)},${samples[b+13].toFixed(4)}\n`;
+  }
+  const blob = new Blob([s], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `daq_${Date.now()}.csv`; a.click();
+}
+
+log('System Ready. Enter IP and Connect.');
 </script>
 </body>
 </html>
