@@ -79,7 +79,7 @@ tbody td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);
   <header>
     <div class="logo">
       <h1>ESP32<em>·</em>DAQ</h1>
-      <p>ICM42670 + LTC2351 + Multi-Axis Visualization</p>
+      <p>ICM42670 + LTC2351 + Individual Channel Visualization</p>
     </div>
     <div class="conn-row">
       <input id="ipInput" type="text" value="10.225.202.182">
@@ -111,7 +111,8 @@ tbody td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);
   <div id="log"></div>
 
   <div class="chart-wrap" id="chartWrap">
-    <div class="chart-container"><canvas id="chartAdcMic"></canvas></div>
+    <div class="chart-container"><canvas id="chartAdc0"></canvas></div>
+    <div class="chart-container"><canvas id="chartAdc1"></canvas></div>
     <div class="chart-container"><canvas id="chartAdc2"></canvas></div>
     <div class="chart-container"><canvas id="chartAdc3"></canvas></div>
     <div class="chart-container"><canvas id="chartAdc4"></canvas></div>
@@ -162,6 +163,8 @@ $('btnStream').onclick = () => {
   $('prog').classList.add('show');
   $('tblWrap').classList.add('show');
   $('chartWrap').classList.remove('show');
+  $('sSamples').textContent = '0';
+  $('sPkts').textContent = '0';
   wsConn.send('Stream');
 };
 
@@ -206,19 +209,19 @@ function handleBinary(buf) {
     if (si >= totalExpected) break;
     const b = si * FIELDS;
     samples[b+0] = dv.getUint32(off, true);
-    samples[b+1] = dv.getUint16(off+4, true);  // adc0
-    samples[b+2] = dv.getUint16(off+6, true);  // adc1
-    samples[b+3] = dv.getUint16(off+8, true);  // adc2
-    samples[b+4] = dv.getUint16(off+10, true); // adc3
-    samples[b+5] = dv.getUint16(off+12, true); // adc4
+    samples[b+1] = dv.getUint16(off+4, true);  
+    samples[b+2] = dv.getUint16(off+6, true);  
+    samples[b+3] = dv.getUint16(off+8, true);  
+    samples[b+4] = dv.getUint16(off+10, true); 
+    samples[b+5] = dv.getUint16(off+12, true); 
     samples[b+6] = dv.getUint16(off+14, true); 
     samples[b+7] = dv.getUint16(off+16, true);
-    samples[b+8] = dv.getInt16(off+18, true) / 2048.0; // ax
-    samples[b+9] = dv.getInt16(off+20, true) / 2048.0; // ay
-    samples[b+10] = dv.getInt16(off+22, true) / 2048.0; // az
-    samples[b+11] = dv.getInt16(off+24, true) / 16.4;   // gx
-    samples[b+12] = dv.getInt16(off+26, true) / 16.4;   // gy
-    samples[b+13] = dv.getInt16(off+28, true) / 16.4;   // gz
+    samples[b+8] = dv.getInt16(off+18, true) / 2048.0; 
+    samples[b+9] = dv.getInt16(off+20, true) / 2048.0; 
+    samples[b+10] = dv.getInt16(off+22, true) / 2048.0; 
+    samples[b+11] = dv.getInt16(off+24, true) / 16.4;   
+    samples[b+12] = dv.getInt16(off+26, true) / 16.4;   
+    samples[b+13] = dv.getInt16(off+28, true) / 16.4;   
     off += 30;
     receivedCount = Math.max(receivedCount, si + 1);
   }
@@ -242,7 +245,6 @@ $('btnVisualize').onclick = () => {
   $('chartWrap').classList.add('show');
   charts.forEach(c => c.destroy()); charts = [];
   
-  // Downsampling to keep browser responsive (max 2000 points)
   const step = Math.max(1, Math.floor(receivedCount / 2000));
   const t = [], a0 = [], a1 = [], a2 = [], a3 = [], a4 = [], imuX = [], imuY = [], imuZ = [], gX = [], gY = [], gZ = [];
 
@@ -258,47 +260,22 @@ $('btnVisualize').onclick = () => {
   const opt = (title) => ({ 
     responsive:true, maintainAspectRatio:false, 
     elements:{point:{radius:0},line:{borderWidth:1.5}},
-    plugins: { title: { display:true, text:title, color:'#fff' }, legend: { labels:{color:'#b8cfe0', font:{size:10}} } },
+    plugins: { title: { display:true, text:title, color:'#fff' }, legend: { display: false } },
     scales:{x:{ticks:{maxTicksLimit:10, color:'#334d63'}},y:{grid:{color:'#192130'}, ticks:{color:'#b8cfe0'}}} 
   });
   
-  // 1. Microphone (ADC0 & ADC1)
-  charts.push(new Chart($('chartAdcMic'), { 
-    type:'line', data:{ labels:t, datasets:[{label:'Mic Ch0',data:a0,borderColor:'#34d399'},{label:'Mic Ch1',data:a1,borderColor:'#fb923c'}] }, 
-    options:opt('MICROPHONE (ADC0 + ADC1)') 
-  }));
-
-  // 2. ADC2
-  charts.push(new Chart($('chartAdc2'), { 
-    type:'line', data:{ labels:t, datasets:[{label:'ADC2',data:a2,borderColor:'#f87171'}] }, 
-    options:opt('ADC CHANNEL 2') 
-  }));
-
-  // 3. ADC3
-  charts.push(new Chart($('chartAdc3'), { 
-    type:'line', data:{ labels:t, datasets:[{label:'ADC3',data:a3,borderColor:'#a78bfa'}] }, 
-    options:opt('ADC CHANNEL 3') 
-  }));
-
-  // 4. ADC4
-  charts.push(new Chart($('chartAdc4'), { 
-    type:'line', data:{ labels:t, datasets:[{label:'ADC4',data:a4,borderColor:'#fbbf24'}] }, 
-    options:opt('ADC CHANNEL 4') 
-  }));
-
-  // 5. Accelerometer
-  charts.push(new Chart($('chartImu'), { 
-    type:'line', data:{ labels:t, datasets:[{label:'AX',data:imuX,borderColor:'#38bdf8'},{label:'AY',data:imuY,borderColor:'#34d399'},{label:'AZ',data:imuZ,borderColor:'#fb923c'}] }, 
-    options:opt('ACCELEROMETER (g)') 
-  }));
-
-  // 6. Gyroscope
-  charts.push(new Chart($('chartGyro'), { 
-    type:'line', data:{ labels:t, datasets:[{label:'GX',data:gX,borderColor:'#a78bfa'},{label:'GY',data:gY,borderColor:'#fbbf24'},{label:'GZ',data:gZ,borderColor:'#f87171'}] }, 
-    options:opt('GYROSCOPE (dps)') 
-  }));
+  // Create 7 Individual Charts
+  charts.push(new Chart($('chartAdc0'), { type:'line', data:{ labels:t, datasets:[{label:'ADC0',data:a0,borderColor:'#34d399'}] }, options:opt('ADC CHANNEL 0') }));
+  charts.push(new Chart($('chartAdc1'), { type:'line', data:{ labels:t, datasets:[{label:'ADC1',data:a1,borderColor:'#fb923c'}] }, options:opt('ADC CHANNEL 1') }));
+  charts.push(new Chart($('chartAdc2'), { type:'line', data:{ labels:t, datasets:[{label:'ADC2',data:a2,borderColor:'#f87171'}] }, options:opt('ADC CHANNEL 2') }));
+  charts.push(new Chart($('chartAdc3'), { type:'line', data:{ labels:t, datasets:[{label:'ADC3',data:a3,borderColor:'#a78bfa'}] }, options:opt('ADC CHANNEL 3') }));
+  charts.push(new Chart($('chartAdc4'), { type:'line', data:{ labels:t, datasets:[{label:'ADC4',data:a4,borderColor:'#fbbf24'}] }, options:opt('ADC CHANNEL 4') }));
   
-  log('Plots generated', 'ok');
+  // Combined IMU/Gyro
+  charts.push(new Chart($('chartImu'),  { type:'line', data:{ labels:t, datasets:[{label:'AX',data:imuX,borderColor:'#38bdf8'},{label:'AY',data:imuY,borderColor:'#34d399'},{label:'AZ',data:imuZ,borderColor:'#fb923c'}] }, options:{...opt('ACCELEROMETER (g)'), plugins:{title:{display:true,text:'ACCELEROMETER (g)',color:'#fff'},legend:{display:true,labels:{color:'#b8cfe0'}}}} }));
+  charts.push(new Chart($('chartGyro'), { type:'line', data:{ labels:t, datasets:[{label:'GX',data:gX,borderColor:'#a78bfa'},{label:'GY',data:gY,borderColor:'#fbbf24'},{label:'GZ',data:gZ,borderColor:'#f87171'}] }, options:{...opt('GYROSCOPE (dps)'), plugins:{title:{display:true,text:'GYROSCOPE (dps)',color:'#fff'},legend:{display:true,labels:{color:'#b8cfe0'}}}} }));
+  
+  log('All plots generated separately', 'ok');
 };
 
 $('btnDownload').onclick = () => {
