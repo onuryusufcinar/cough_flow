@@ -90,7 +90,7 @@ tbody td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);
   <header>
     <div class="logo">
       <h1>ESP32<em>·</em>DAQ</h1>
-      <p>ICM42670 + LTC2351 + Multi-Channel Visualization</p>
+      <p>ICM42670 + LTC2351 + Individual Channel Visualization</p>
     </div>
     <div class="conn-row">
       <input id="ipInput" type="text" value="10.225.202.182">
@@ -169,15 +169,12 @@ function setWsState(s) {
   $('btnStream').disabled = s !== 'open';
 }
 
-// Mode Toggle Listener
+// Mode Toggle visual labels
 $('modeToggle').onchange = function() {
     const val = this.checked ? 1 : 0;
     $('lblCough').className = val === 0 ? 'mode-label active' : 'mode-label';
     $('lblFlow').className = val === 1 ? 'mode-label active' : 'mode-label';
-    if (wsConn && wsConn.readyState === 1) {
-        wsConn.send(`SET_U1:${val}`);
-        log(`U1 Mode set to: ${val === 1 ? 'FLOW (1)' : 'COUGH (0)'}`, 'data');
-    }
+    log(`Next Download will be marked as: ${val === 1 ? 'FLOW (1)' : 'COUGH (0)'}`, 'data');
 };
 
 $('btnConnect').onclick = () => {
@@ -244,8 +241,8 @@ function handleBinary(buf) {
     samples[b+3] = dv.getUint16(off+8, true);  
     samples[b+4] = dv.getUint16(off+10, true); 
     samples[b+5] = dv.getUint16(off+12, true); 
-    samples[b+6] = dv.getUint16(off+14, true); 
-    samples[b+7] = dv.getUint16(off+16, true);
+    samples[b+6] = dv.getUint16(off+14, true); // user0
+    samples[b+7] = dv.getUint16(off+16, true); // user1 (raw from device)
     samples[b+8] = dv.getInt16(off+18, true) / 2048.0; 
     samples[b+9] = dv.getInt16(off+20, true) / 2048.0; 
     samples[b+10] = dv.getInt16(off+22, true) / 2048.0; 
@@ -264,9 +261,11 @@ function handleBinary(buf) {
 function renderTable() {
   const start = Math.max(0, receivedCount - 200);
   let h = '';
+  // Determine displayed U1 based on slider for preview
+  const previewU1 = $('modeToggle').checked ? 1 : 0;
   for (let i = start; i < receivedCount; i++) {
     const b = i * FIELDS;
-    h += `<tr><td>${i+1}</td><td>${samples[b]}</td><td>${samples[b+1]}</td><td>${samples[b+2]}</td><td>${samples[b+3]}</td><td>${samples[b+4]}</td><td>${samples[b+5]}</td><td>${samples[b+6]}</td><td>${samples[b+7]}</td><td>${samples[b+8].toFixed(2)}</td><td>${samples[b+9].toFixed(2)}</td><td>${samples[b+10].toFixed(2)}</td><td>${samples[b+11].toFixed(1)}</td><td>${samples[b+12].toFixed(1)}</td><td>${samples[b+13].toFixed(1)}</td></tr>`;
+    h += `<tr><td>${i+1}</td><td>${samples[b]}</td><td>${samples[b+1]}</td><td>${samples[b+2]}</td><td>${samples[b+3]}</td><td>${samples[b+4]}</td><td>${samples[b+5]}</td><td>${samples[b+6]}</td><td>${previewU1}</td><td>${samples[b+8].toFixed(2)}</td><td>${samples[b+9].toFixed(2)}</td><td>${samples[b+10].toFixed(2)}</td><td>${samples[b+11].toFixed(1)}</td><td>${samples[b+12].toFixed(1)}</td><td>${samples[b+13].toFixed(1)}</td></tr>`;
   }
   $('tbody').innerHTML = h;
 }
@@ -305,14 +304,27 @@ $('btnVisualize').onclick = () => {
 };
 
 $('btnDownload').onclick = () => {
+  if (!samples || receivedCount === 0) return;
+  
+  // Lock in the value from the toggle switch at the time of download
+  const downloadU1 = $('modeToggle').checked ? 1 : 0;
+  const modeName = downloadU1 === 1 ? 'flow' : 'cough';
+
   let s = 'timestamp_us,adc0,adc1,adc2,adc3,adc4,user0,user1,ax,ay,az,gx,gy,gz\n';
   for (let i=0; i<receivedCount; i++) {
     const b = i * FIELDS;
-    s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},${samples[b+6]},${samples[b+7]},${samples[b+8]},${samples[b+9]},${samples[b+10]},${samples[b+11]},${samples[b+12]},${samples[b+13]}\n`;
+    // We ignore samples[b+7] and use downloadU1 instead
+    s += `${samples[b]},${samples[b+1]},${samples[b+2]},${samples[b+3]},${samples[b+4]},${samples[b+5]},${samples[b+6]},${downloadU1},${samples[b+8].toFixed(4)},${samples[b+9].toFixed(4)},${samples[b+10].toFixed(4)},${samples[b+11].toFixed(2)},${samples[b+12].toFixed(2)},${samples[b+13].toFixed(2)}\n`;
   }
+  
   const blob = new Blob([s], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download=`daq_${Date.now()}.csv`; a.click();
+  const a = document.createElement('a'); 
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  a.href = url; 
+  a.download = `daq_${modeName}_${ts}.csv`; 
+  a.click();
+  log(`Downloaded CSV as ${modeName} mode.`, 'ok');
 };
 </script>
 </body>
